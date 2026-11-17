@@ -1,0 +1,12 @@
+# A31 Booster — boot-time props (applied by Magisk via resetprop)
+
+# --- Quick Settings / window background blur ---
+# Enables AOSP background-blur (takes effect on AOSP-based ROMs and OneOS guests;
+# One UI's own QS blur is Samsung-controlled - see README).
+ro.surface_flinger.supports_background_blur=1
+persist.sys.sf.disable_blurs=0
+
+# --- lighter, smoother UI ---
+debug.hwui.use_buffer_age=true
+persist.sys.usap_pool_enabled=true
+ro.config.avoid_gfx_accel=false

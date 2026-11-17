@@ -1,0 +1,7 @@
+id=a31booster
+name=A31 Booster (Turbo + Blur)
+version=v1.0.0
+versionCode=1
+author=Mouhamad10
+description=On-demand MAX performance (CPU + Mali-G52 GPU + I/O) and One UI-lighter cosmetics (Quick Settings / window blur, smoother UI) for the Galaxy A31 (SM-A315F, MT6768). Toggle TURBO from Magisk's Action button.
+updateJson=https://raw.githubusercontent.com/Mouhamad10/a31-booster/main/update.json

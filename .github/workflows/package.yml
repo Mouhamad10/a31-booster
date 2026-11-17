@@ -1,0 +1,59 @@
+name: Package Magisk module
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+  release:
+    types: [ created ]
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch Magisk module installer stubs
+        run: |
+          mkdir -p META-INF/com/google/android
+          UB=META-INF/com/google/android/update-binary
+          # canonical Magisk module installer (works in the Magisk app and in recovery)
+          curl -fsSL -o "$UB" \
+            https://raw.githubusercontent.com/topjohnwu/Magisk/master/scripts/module_installer.sh \
+          || curl -fsSL -o "$UB" \
+            https://raw.githubusercontent.com/topjohnwu/magisk-module-template/master/META-INF/com/google/android/update-binary
+          echo '#MAGISK' > META-INF/com/google/android/updater-script
+          test -s "$UB"
+
+      - name: Build flashable zip
+        run: |
+          VER=$(grep -m1 '^version=' module.prop | cut -d= -f2)
+          OUT="a31-booster-${VER}.zip"
+          # include only module files, not CI / git metadata
+          zip -r9 "$OUT" \
+            module.prop system.prop customize.sh service.sh action.sh \
+            scripts update.json README.md CHANGELOG.md LICENSE \
+            META-INF
+          cp "$OUT" a31-booster.zip
+          ls -lh a31-booster*.zip
+          sha256sum a31-booster*.zip | tee SHA256SUMS.txt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: a31-booster
+          path: |
+            a31-booster*.zip
+            SHA256SUMS.txt
+
+      - name: Attach to release (on tag/release)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            a31-booster.zip
+            a31-booster-*.zip
+            SHA256SUMS.txt
