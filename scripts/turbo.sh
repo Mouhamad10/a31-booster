@@ -38,7 +38,7 @@ save /sys/module/ged/parameters/gpu_dvfs_enable ged_dvfs
 echo 0 > /sys/module/ged/parameters/gpu_dvfs_enable 2>/dev/null
 echo 0 > /sys/kernel/ged/hal/custom_boost_gpu_freq 2>/dev/null   # 0 = highest level
 echo 0 > /proc/gpufreq/gpufreq_opp_freq 2>/dev/null
-echo 100 > /proc/gpufreqv2/fix_target_opp_index 2>/dev/null
+[ -e /proc/gpufreqv2/fix_target_opp_index ] && echo 100 > /proc/gpufreqv2/fix_target_opp_index 2>/dev/null
 
 # ---- Thermal: relax (temporary; the cutoff above guards the start) ----
 stop thermald 2>/dev/null; stop mtk_thermal 2>/dev/null

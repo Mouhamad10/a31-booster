@@ -16,8 +16,10 @@ for pol in policy0 policy6; do
   fi
 done
 
-if [ -f "$STATE/ppm_enabled" ]; then rst /proc/ppm/enabled ppm_enabled; else echo 1 > /proc/ppm/enabled 2>/dev/null; fi
-if [ -f "$STATE/ged_dvfs" ]; then rst /sys/module/ged/parameters/gpu_dvfs_enable ged_dvfs; else echo 1 > /sys/module/ged/parameters/gpu_dvfs_enable 2>/dev/null; fi
+# /proc/ppm/enabled and gpu_dvfs_enable read back as sentences / flags but only accept 0|1 on
+# write, so always force the known-good "on" value rather than replaying a snapshotted string.
+echo 1 > /proc/ppm/enabled 2>/dev/null
+echo 1 > /sys/module/ged/parameters/gpu_dvfs_enable 2>/dev/null
 echo -1 > /sys/kernel/ged/hal/custom_boost_gpu_freq 2>/dev/null   # release GPU floor
 echo -1 > /proc/gpufreq/gpufreq_opp_freq 2>/dev/null
 

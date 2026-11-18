@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.1
+- Fix (found by live on-device test on the A31): NORMAL left MediaTek PPM **disabled** because
+  `/proc/ppm/enabled` reads back as a sentence but only accepts `0|1` on write — NORMAL now forces
+  `ppm=1` / `gpu_dvfs=1` instead of replaying the snapshotted string.
+- TURBO: guard the optional `gpufreqv2` node so it no longer prints a "can't create" error on A31.
+
 ## v1.1.0
 - TURBO now **snapshots every node it changes** and NORMAL restores the exact previous values.
 - Added a **52 °C battery-temp cutoff**: TURBO refuses to start (and won't disable thermal) when hot.
