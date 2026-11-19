@@ -1,46 +1,88 @@
-# A31 Booster (Turbo + Blur)
+# A31 Booster — Turbo + Blur (Magisk module)
 
-A single Magisk module for the **Samsung Galaxy A31 (SM-A315F, MediaTek MT6768)** that does two things:
+A **Magisk module** for the Samsung Galaxy A31 (**SM-A315F / MT6768**, Mali-G52) that does two
+unrelated things, both toggleable, both safe to remove:
 
-1. **On-demand TURBO** — pushes the CPU, the **Mali-G52 MC2 GPU** and I/O to maximum and relaxes thermal throttling, toggled from **Magisk's Action button**. For bursts: gaming, heavy exports, builds.
-2. **Lighter cosmetics** — enables **Quick Settings / window background blur** and a few smoother-UI props, meant to feel lighter than stock One UI.
+1. **Turbo** — an on-demand, one-tap *maximum performance* mode (CPU + GPU + I/O) with a thermal
+   safety guard, triggered from Magisk's **Action** button.
+2. **Blur / lighter UI** — boot-time props that enable AOSP background blur and a few smoothness
+   tweaks (useful on AOSP-based ROMs and OneOS guests; One UI's own QS blur is Samsung-controlled).
 
-> Root with **Magisk** required. Built for the A31; it installs on other MT6768 phones but some sysfs paths may differ (the scripts fail safe).
+> Self-contained README: a person or an AI assistant with no prior context should be able to
+> understand, rebuild, and extend this module from it.
 
-## Install
-1. Download `a31-booster.zip` from [Releases](https://github.com/Mouhamad10/a31-booster/releases/latest).
-2. Magisk app → **Modules** → **Install from storage** → pick the zip → reboot.
+---
 
-## Use
-- **TURBO on/off:** Magisk app → **Modules** → **A31 Booster** → **Action**.
-  Each tap toggles between TURBO and NORMAL. The phone always boots in NORMAL.
-- **Blur / UI props:** applied automatically every boot (no action needed).
+## How it works
 
-## ⚠️ Heat warning
-TURBO **disables thermal throttling** while it is ON. The phone will get hot under load.
-Use it in short bursts and toggle it **OFF** when done. NORMAL restores full thermal protection.
-Safety nets in v1.1: TURBO **refuses to start above 52 °C** battery temp, and **snapshots** every value
-it changes so NORMAL restores your exact previous state.
+### Turbo (`scripts/turbo.sh`, triggered by `action.sh`)
+Pressing **Action** in the Magisk app toggles Turbo. On enable:
 
-## About the blur
-`ro.surface_flinger.supports_background_blur=1` only **arms** AOSP background blur — SystemUI still has
-to request it. It renders on **AOSP-based ROMs and OneOS guest systems**. On **stock One UI**, Samsung's
-SystemUI won't honour it, so for real QS depth/blur on One UI use **[Iconify](https://github.com/Mahmud0808/Iconify)**
-(QS overlays, no SystemUI recompile). The genuinely "lighter than One UI" blur realistically lands on a
-light **GSI** (see the [a31-nethunter](https://github.com/Mouhamad10/a31-nethunter) ROM guide), not patched stock One UI.
+- **Safety first:** aborts if `battery/temp` ≥ **52.0 °C** (temp is in tenths of a degree, so the
+  check is `>= 520`).
+- **Snapshot:** every node it is about to change is saved under `/data/adb/a31booster.state` so
+  **Normal** can restore the exact previous values.
+- **CPU:** governor → `performance` and `scaling_min_freq = cpuinfo_max_freq` on both clusters —
+  `policy0` (6× Cortex-A55) and `policy6` (2× Cortex-A75) — i.e. clock locked at max.
+- **MTK PPM/PBM power cap:** `echo 0 > /proc/ppm/enabled` (removes the power-budget throttle).
+- **GPU (Mali-G52 via MTK GED):** DVFS off (`ged/parameters/gpu_dvfs_enable=0`), floor to the top
+  OPP (`custom_boost_gpu_freq=0`, `gpufreq_opp_freq=0`, `gpufreqv2/fix_target_opp_index`).
+- **Thermal:** temporarily relaxed (`stop thermald`/`mtk_thermal`, thermal zones → `disabled`).
+  The 52 °C start-guard above is what keeps this safe.
+- **I/O:** best available scheduler (`none`/`mq-deadline`/`kyber`), larger `read_ahead_kb` /
+  `nr_requests`, `swappiness=10`.
 
-## What TURBO changes
-- CPU: `performance` governor, `scaling_min_freq = max`, MTK PPM / hotplug off.
-- GPU: top Mali OPP, GED DVFS off, devfreq governor `performance`.
-- Thermal: `thermald` / `mtk_thermal` stopped, thermal zones disabled (temporary).
-- I/O: `none`/`mq-deadline` scheduler, larger read-ahead and queue depth.
-- VM: lower swappiness, scheduler/top-app boost.
+### Normal (`scripts/normal.sh`)
+Restores the snapshot and re-enables thermal protection. **Key fix (v1.1):** `/proc/ppm/enabled` and
+`ged/gpu_dvfs_enable` *read back* as a sentence/flag but only accept `0|1` on **write**. Replaying a
+snapshotted string silently writes 0 and left the phone throttled. Normal therefore **force-writes
+the known-good `1`** instead of replaying the snapshot for those two nodes, then restores CPU
+governor/min from the snapshot, restarts `thermald`/`mtk_thermal`, re-enables thermal zones,
+`swappiness=60`, and deletes the state dir.
 
-NORMAL reverses every one of these.
+### Blur / lighter UI (`system.prop`, applied by Magisk `resetprop` at boot)
+- `ro.surface_flinger.supports_background_blur=1`, `persist.sys.sf.disable_blurs=0` → AOSP background
+  blur (QS / window). On stock One UI the QS blur is Samsung-controlled and these have no effect;
+  they take effect on AOSP ROMs and OneOS guests.
+- `debug.hwui.use_buffer_age=true`, `persist.sys.usap_pool_enabled=true`,
+  `ro.config.avoid_gfx_accel=false` → lighter/smoother rendering.
 
-## Build
-The flashable zip is built by GitHub Actions ([`.github/workflows/package.yml`](.github/workflows/package.yml)) —
-push to `main` or run the workflow, and it packages `a31-booster.zip` and attaches it to a release.
+---
 
-## License
-MIT — see [LICENSE](LICENSE).
+## Files
+
+```
+module.prop        # id=a31booster, name "A31 Booster (Turbo + Blur)", author Mouhamad10
+system.prop        # boot-time props (blur + smoothness) — applied by Magisk
+action.sh          # Magisk Action button -> toggles Turbo (uses a .turbo_on flag file)
+scripts/turbo.sh   # apply max performance (with snapshot + 52C guard)
+scripts/normal.sh  # restore snapshot + re-enable thermal (+ the ppm/gpu force-1 fix)
+service.sh         # late_start hook
+customize.sh       # install-time setup
+update.json        # Magisk in-app updates -> points at the GitHub release
+CHANGELOG.md
+.github/workflows/package.yml   # CI: zips the module and attaches it to a release
+```
+
+## Install & use
+1. Flash the latest **`a31-booster.zip`** from *Releases* in the Magisk app (or TWRP).
+2. Reboot.
+3. Open **Magisk → Modules → A31 Booster → Action** to toggle **Turbo** on/off. Toggle it off (or
+   just reboot) to return to Normal; thermal protection is always restored on Normal.
+
+Requirements: rooted A31 (Magisk), MT6768 nodes as listed (paths degrade gracefully if absent).
+
+## Build / release
+`.github/workflows/package.yml` zips the module and publishes it as `a31-booster.zip` (+ a versioned
+copy and `SHA256SUMS.txt`) on a tag. Current: **v1.1.1** (versionCode 3). `update.json` lets Magisk
+offer in-app updates.
+
+## Safety notes
+- Turbo disables thermal throttling while active — the 52 °C start-guard prevents enabling it when
+  already hot, but don't run heavy loads on Turbo for long. Normal restores full thermal protection.
+- Everything is snapshot/restore based and the module is removable; nothing is written to firmware.
+
+## Future ideas
+- A periodic watchdog that auto-drops Turbo if the battery crosses a hotter threshold while active.
+- Per-app Turbo profiles; a Quick Settings tile toggle.
+- Expose the GPU/thermal tunables as module options (`edit-options`-style).
